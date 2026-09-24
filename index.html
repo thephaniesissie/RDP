@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Simulateur Réseau de Petri - Distributeur de Café</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f4f6f8;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+    }
+    .container {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .panel {
+      background: #fff;
+      border-radius: 8px;
+      padding: 15px 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      min-width: 250px;
+    }
+    .panel h2 {
+      margin-top: 0;
+      color: #34495e;
+      border-bottom: 2px solid #ecf0f1;
+      padding-bottom: 8px;
+    }
+    ul { list-style-type: none; padding: 0; }
+    li {
+      padding: 6px 0;
+      display: flex;
+      justify-content: space-between;
+    }
+    .token-badge {
+      background-color: #27ae60;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: bold;
+    }
+    button {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 10px;
+      border: none;
+      border-radius: 4px;
+      background-color: #3498db;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:disabled {
+      background-color: #bdc3c7;
+      cursor: not-allowed;
+    }
+    button:not(:disabled):hover {
+      background-color: #2980b9;
+    }
+    #log {
+      max-height: 150px;
+      overflow-y: auto;
+      background: #2c3e50;
+      color: #ecf0f1;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Distributeur de Café (Réseau de Petri)</h1>
+
+  <div class="container">
+    <!-- Panel d'affichage de l'état des Places (Marquage) -->
+    <div class="panel">
+      <h2>État des Places (Jetons)</h2>
+      <ul>
+        <li><span>[P1] Machine au repos :</span> <span id="val-P1" class="token-badge">0</span></li>
+        <li><span>[P2] Pièce insérée :</span> <span id="val-P2" class="token-badge">0</span></li>
+        <li><span>[P3] Stock gobelets :</span> <span id="val-P3" class="token-badge">0</span></li>
+        <li><span>[P4] Gobelet distribué :</span> <span id="val-P4" class="token-badge">0</span></li>
+        <li><span>[P5] Préparation café :</span> <span id="val-P5" class="token-badge">0</span></li>
+        <li><span>[P6] Boisson prête :</span> <span id="val-P6" class="token-badge">0</span></li>
+      </ul>
+    </div>
+
+    <!-- Panel des Transitions (Actions utilisateur) -->
+    <div class="panel">
+      <h2>Transitions (Franchissement)</h2>
+      <button id="btn-t1" onclick="franchir('t1')">t1 : Insérer une pièce</button>
+      <button id="btn-t2" onclick="franchir('t2')">t2 : Sélectionner café</button>
+      <button id="btn-t3" onclick="franchir('t3')">t3 : Verser café dans gobelet</button>
+      <button id="btn-t4" onclick="franchir('t4')">t4 : Retirer la boisson</button>
+      <button onclick="reinitialiser()" style="background-color: #e74c3c; margin-top: 15px;">Réinitialiser</button>
+    </div>
+  </div>
+
+  <!-- Historique des actions -->
+  <div style="max-width: 600px; margin: 20px auto;">
+    <h3>Journal des événements</h3>
+    <div id="log"></div>
+  </div>
+
+  <script>
+    // Marquage initial du Réseau de Petri
+    const etatInitial = { P1: 1, P2: 0, P3: 5, P4: 0, P5: 0, P6: 0 };
+    let places = { ...etatInitial };
+
+    // Définition des règles de franchissement des transitions
+    const transitions = {
+      t1: { preset: { P1: 1 }, postset: { P2: 1 } },
+      t2: { preset: { P2: 1, P3: 1 }, postset: { P4: 1, P5: 1 } },
+      t3: { preset: { P4: 1, P5: 1 }, postset: { P6: 1 } },
+      t4: { preset: { P6: 1 }, postset: { P1: 1 } }
+    };
+
+    // Vérifie si une transition est tirables (suffisamment de jetons dans l'entrée)
+    function estFranchissable(t) {
+      for (let place in transitions[t].preset) {
+        if (places[place] < transitions[t].preset[place]) return false;
+      }
+      return true;
+    }
+
+    // Effectue le tir d'une transition
+    function franchir(t) {
+      if (!estFranchissable(t)) return;
+
+      // Retrait des jetons d'entrée
+      for (let place in transitions[t].preset) {
+        places[place] -= transitions[t].preset[place];
+      }
+      // Ajout des jetons de sortie
+      for (let place in transitions[t].postset) {
+        places[place] += transitions[t].postset[place];
+      }
+
+      ajouterLog(`Transition [${t}] franchie.`);
+      mettreAJourIHM();
+    }
+
+    // Met à jour les boutons et l'affichage des jetons
+    function mettreAJourIHM() {
+      for (let p in places) {
+        document.getElementById(`val-${p}`).innerText = places[p];
+      }
+      for (let t in transitions) {
+        document.getElementById(`btn-${t}`).disabled = !estFranchissable(t);
+      }
+    }
+
+    function ajouterLog(msg) {
+      const logDiv = document.getElementById("log");
+      logDiv.innerHTML += `> ${msg}<br>`;
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function reinitialiser() {
+      places = { ...etatInitial };
+      document.getElementById("log").innerHTML = "";
+      ajouterLog("Réseau réinitialisé.");
+      mettreAJourIHM();
+    }
+
+    // Initialisation
+    mettreAJourIHM();
+    ajouterLog("Système prêt. Machine en repos.");
+  </script>
+</body>
+</html>
